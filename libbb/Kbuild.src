@@ -167,10 +167,14 @@ lib-$(CONFIG_MPSTAT) += get_cpu_count.o
 lib-$(CONFIG_POWERTOP) += get_cpu_count.o
 
 lib-$(CONFIG_PING) += inet_cksum.o
+lib-$(CONFIG_PING6) += inet_cksum.o
 lib-$(CONFIG_TRACEROUTE) += inet_cksum.o
 lib-$(CONFIG_TRACEROUTE6) += inet_cksum.o
 lib-$(CONFIG_UDHCPC) += inet_cksum.o
 lib-$(CONFIG_UDHCPD) += inet_cksum.o
+
+lib-$(CONFIG_HTTPD) += percent_decode.o
+lib-$(CONFIG_WGET) += percent_decode.o
 
 # We shouldn't build xregcomp.c if we don't need it - this ensures we don't
 # require regex.h to be in the include dir even if we don't need it thereby

@@ -45,6 +45,11 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
+/* There are two incompatible basename's, let not use them! */
+/* See the dirname/basename man page for details */
+#include <libgen.h> /* dirname,basename */
+#undef basename
+#define basename dont_use_basename
 #include <sys/poll.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -662,6 +667,7 @@ ssize_t recv_from_to(int fd, void *buf, size_t len, int flags,
 		struct sockaddr *to,
 		socklen_t sa_size) FAST_FUNC;
 
+uint16_t inet_cksum(uint16_t *addr, int len) FAST_FUNC;
 
 char *xstrdup(const char *s) FAST_FUNC RETURNS_MALLOC;
 char *xstrndup(const char *s, int n) FAST_FUNC RETURNS_MALLOC;
@@ -1186,7 +1192,7 @@ extern int del_loop(const char *device) FAST_FUNC;
 /* If *devname is not NULL, use that name, otherwise try to find free one,
  * malloc and return it in *devname.
  * return value: 1: read-only loopdev was setup, 0: rw, < 0: error */
-extern int set_loop(char **devname, const char *file, unsigned long long offset) FAST_FUNC;
+extern int set_loop(char **devname, const char *file, unsigned long long offset, int ro) FAST_FUNC;
 
 /* Like bb_ask below, but asks on stdin with no timeout.  */
 char *bb_ask_stdin(const char * prompt) FAST_FUNC;
@@ -1443,6 +1449,12 @@ typedef struct line_input_t {
 	int cur_history;
 	int max_history; /* must never be <= 0 */
 #  if ENABLE_FEATURE_EDITING_SAVEHISTORY
+	/* meaning of this field depends on FEATURE_EDITING_SAVE_ON_EXIT:
+	 * if !FEATURE_EDITING_SAVE_ON_EXIT: "how many lines are
+	 * in on-disk history"
+	 * if FEATURE_EDITING_SAVE_ON_EXIT: "how many in-memory lines are
+	 * also in on-disk history (and thus need to be skipped on save)"
+	 */
 	unsigned cnt_history_in_file;
 	const char *hist_file;
 #  endif
@@ -1450,13 +1462,12 @@ typedef struct line_input_t {
 # endif
 } line_input_t;
 enum {
-	DO_HISTORY = 1 * (MAX_HISTORY > 0),
-	SAVE_HISTORY = 2 * (MAX_HISTORY > 0) * ENABLE_FEATURE_EDITING_SAVEHISTORY,
-	TAB_COMPLETION = 4 * ENABLE_FEATURE_TAB_COMPLETION,
-	USERNAME_COMPLETION = 8 * ENABLE_FEATURE_USERNAME_COMPLETION,
-	VI_MODE = 0x10 * ENABLE_FEATURE_EDITING_VI,
-	WITH_PATH_LOOKUP = 0x20,
-	FOR_SHELL = DO_HISTORY | SAVE_HISTORY | TAB_COMPLETION | USERNAME_COMPLETION,
+	DO_HISTORY       = 1 * (MAX_HISTORY > 0),
+	TAB_COMPLETION   = 2 * ENABLE_FEATURE_TAB_COMPLETION,
+	USERNAME_COMPLETION = 4 * ENABLE_FEATURE_USERNAME_COMPLETION,
+	VI_MODE          = 8 * ENABLE_FEATURE_EDITING_VI,
+	WITH_PATH_LOOKUP = 0x10,
+	FOR_SHELL        = DO_HISTORY | TAB_COMPLETION | USERNAME_COMPLETION,
 };
 line_input_t *new_line_input_t(int flags) FAST_FUNC;
 /* So far static: void free_line_input_t(line_input_t *n) FAST_FUNC; */
@@ -1468,6 +1479,9 @@ line_input_t *new_line_input_t(int flags) FAST_FUNC;
  * >0 length of input string, including terminating '\n'
  */
 int read_line_input(line_input_t *st, const char *prompt, char *command, int maxsize, int timeout) FAST_FUNC;
+# if ENABLE_FEATURE_EDITING_SAVE_ON_EXIT
+void save_history(line_input_t *st);
+# endif
 #else
 #define MAX_HISTORY 0
 int read_line_input(const char* prompt, char* command, int maxsize) FAST_FUNC;
@@ -1590,6 +1604,15 @@ pid_t *find_pid_by_name(const char* procName) FAST_FUNC;
 pid_t *pidlist_reverse(pid_t *pidList) FAST_FUNC;
 int starts_with_cpu(const char *str) FAST_FUNC;
 unsigned get_cpu_count(void) FAST_FUNC;
+
+
+/* Use strict=1 if you process input from untrusted source:
+ * it will return NULL on invalid %xx (bad hex chars)
+ * and str + 1 if decoded char is / or NUL.
+ * In non-strict mode, it always succeeds (returns str),
+ * and also it additionally decoded '+' to space.
+ */
+char *percent_decode_in_place(char *str, int strict) FAST_FUNC;
 
 
 extern const char bb_uuenc_tbl_base64[];

@@ -81,7 +81,15 @@ aa:      85.1% -- replaced with aa.gz
 
 /* ===========================================================================
  */
-#define SMALL_MEM
+#if   CONFIG_GZIP_FAST == 0
+# define SMALL_MEM
+#elif CONFIG_GZIP_FAST == 1
+# define MEDIUM_MEM
+#elif CONFIG_GZIP_FAST == 2
+# define BIG_MEM
+#else
+# error "Invalid CONFIG_GZIP_FAST value"
+#endif
 
 #ifndef INBUFSIZ
 #  ifdef SMALL_MEM
